@@ -1,9 +1,17 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   async rewrites() {
-    // Local development uses the FastAPI dev server. In production Vercel
-    // routes /api/* to the Python function configured in the repo root.
-    if (process.env.NODE_ENV === "production") return [];
+    // Keep browser requests same-origin in production. This avoids browser
+    // privacy/network blockers while the separate FastAPI service remains the
+    // actual API runtime.
+    if (process.env.NODE_ENV === "production") {
+      return [
+        {
+          source: "/api/:path*",
+          destination: "https://stock-strategies-only-api.vercel.app/api/:path*",
+        },
+      ];
+    }
     return [
       {
         source: "/api/:path*",

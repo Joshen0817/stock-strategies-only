@@ -1,6 +1,8 @@
 // 若設了 NEXT_PUBLIC_API_BASE 就直接打 FastAPI（避開 Next dev proxy 的 socket hang up），
 // 否則走 next.config rewrites 代理。長請求如 /api/run 強烈建議走直連。
-const BASE = process.env.NEXT_PUBLIC_API_BASE || "";
+const BASE = process.env.NODE_ENV === "production"
+  ? ""
+  : process.env.NEXT_PUBLIC_API_BASE || "";
 
 export type Strategy = {
   id: string;
