@@ -5,10 +5,13 @@ FINMIND_URL = "https://api.finmindtrade.com/api/v4/data"
 TELEGRAM_API = "https://api.telegram.org/bot{token}/sendMessage"
 
 # ── 快取（parquet）──
-FINMIND_CACHE_DIR = os.environ.get(
-    "FINMIND_CACHE_DIR",
-    str(Path(__file__).resolve().parent.parent / ".cache" / "finmind"),
+# Vercel 的部署目錄是唯讀的；/tmp 在 serverless function 內可寫入。
+_default_cache_dir = (
+    "/tmp/stock-strategies-finmind"
+    if os.environ.get("VERCEL")
+    else str(Path(__file__).resolve().parent.parent / ".cache" / "finmind")
 )
+FINMIND_CACHE_DIR = os.environ.get("FINMIND_CACHE_DIR", _default_cache_dir)
 # 各頻率快取新鮮天數：超過則增量更新
 CACHE_FRESH_DAYS = {"daily": 1, "monthly": 20, "weekly": 5, "quarterly": 60, "static": 7}
 
