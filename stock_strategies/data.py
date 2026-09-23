@@ -7,6 +7,7 @@ import pandas as pd
 
 from .config import FINMIND_URL
 from .cache import fetch_finmind_cached
+from .runtime import get_finmind_token
 
 
 def fetch_finmind(
@@ -23,7 +24,7 @@ def fetch_finmind(
         "dataset": dataset,
         "data_id": stock_id,
         "start_date": start_date,
-        "token": os.environ["FINMIND_TOKEN"],
+        "token": get_finmind_token(),
     }
     last_err: Exception | None = None
     for attempt in range(max_retries + 1):

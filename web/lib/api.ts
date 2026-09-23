@@ -20,6 +20,11 @@ export type RunResult = {
   results: any[];
 };
 
+export type RunOptions = {
+  stocks?: { stock_id: string; name?: string }[];
+  finmindToken?: string;
+};
+
 async function jfetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     ...init,
@@ -52,9 +57,12 @@ export const api = {
     }),
   getMarket: () => jfetch<any>("/api/market"),
   getWatchlist: () => jfetch<{ items: any[]; error?: string }>("/api/watchlist"),
-  run: (strategy_id: string, limit?: number) =>
+  run: (strategy_id: string, limit?: number, options?: RunOptions) =>
     jfetch<RunResult>("/api/run", {
       method: "POST",
-      body: JSON.stringify({ strategy_id, limit }),
+      headers: options?.finmindToken
+        ? { "X-FinMind-Token": options.finmindToken }
+        : undefined,
+      body: JSON.stringify({ strategy_id, limit, stocks: options?.stocks }),
     }),
 };

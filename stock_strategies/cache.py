@@ -23,6 +23,7 @@ from .config import (
     RATE_LIMIT_BACKOFF_BASE,
     RATE_LIMIT_MAX_RETRIES,
 )
+from .runtime import get_finmind_token
 
 
 class FinMindRateLimitError(RuntimeError):
@@ -205,7 +206,7 @@ def fetch_finmind_cached(
             "dataset": dataset,
             "data_id": data_id,
             "start_date": start_date,
-            "token": os.environ.get("FINMIND_TOKEN", ""),
+            "token": get_finmind_token(),
         }
         # 增量：有舊快取（已含早期全歷史）則只抓 max_date-7d 之後，concat 去重補上新資料。
         # 不可用 min(start_date, inc_start)：當 start_date 早於 cache 時會退回全量重抓，增量失效。

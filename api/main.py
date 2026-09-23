@@ -23,7 +23,7 @@ import time
 import traceback
 from typing import Any, Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -38,6 +38,7 @@ from stock_strategies import loader
 from stock_strategies.evaluate import evaluate
 from stock_strategies.market import apply_market_filter, get_market_state
 from stock_strategies.sheet import read_watchlist
+from stock_strategies.runtime import get_finmind_token, use_finmind_token
 
 from api.services.ai_generator import generate_strategy_with_ai
 
@@ -70,9 +71,17 @@ class AIGenerateIn(BaseModel):
     name: Optional[str] = None
 
 
+class StockInput(BaseModel):
+    stock_id: str = Field(..., min_length=1, max_length=12)
+    name: str = Field(default="", max_length=80)
+
+
 class RunIn(BaseModel):
     strategy_id: str
     limit: Optional[int] = Field(None, description="只跑前 N 檔（debug 用）")
+    stocks: Optional[list[StockInput]] = Field(
+        None, description="網頁手動輸入的股票清單；不填則讀 Google Sheet"
+    )
 
 
 # ---------- Routes ----------
@@ -145,39 +154,53 @@ def watchlist():
 
 
 @app.post("/api/run")
-def run(payload: RunIn):
+def run(payload: RunIn, finmind_token: Optional[str] = Header(None, alias="X-FinMind-Token")):
     strategy = loader.get_strategy(payload.strategy_id)
     if not strategy:
         raise HTTPException(404, f"找不到策略 {payload.strategy_id}")
 
-    try:
-        wl = read_watchlist()
-    except Exception as e:
-        raise HTTPException(500, f"讀取 watchlist 失敗：{e}")
+    with use_finmind_token(finmind_token):
+        if not get_finmind_token():
+            raise HTTPException(
+                400,
+                "請在頁面輸入 FinMind Token，或先在部署環境設定 FINMIND_TOKEN。",
+            )
 
-    if payload.limit:
-        wl = wl[: payload.limit]
+        if payload.stocks is not None:
+            wl = [row.model_dump() for row in payload.stocks if row.stock_id.strip()]
+        else:
+            try:
+                wl = read_watchlist()
+            except Exception as e:
+                raise HTTPException(500, f"讀取 watchlist 失敗：{e}")
 
-    params = strategy["params"]
-    market_filter_on = params.get("market_filter_enabled", True)
-    if market_filter_on:
-        market_state = get_market_state(int(params.get("market_filter_ma_period", 20)))
-    else:
-        market_state = {"bullish": True, "note": "已關閉大盤濾鏡"}
+        if not wl:
+            raise HTTPException(400, "沒有可掃描的股票，請輸入至少一個股票代號。")
+        if payload.limit:
+            wl = wl[: payload.limit]
+        if len(wl) > 30:
+            raise HTTPException(400, "單次最多掃描 30 檔股票，請分批執行。")
 
-    results = []
-    for row in wl:
-        sid = str(row["stock_id"])
-        name = row.get("name", "")
-        r = evaluate(sid, name, strategy=strategy)
-        if r:
-            results.append(r)
-        time.sleep(0.4)
+        params = strategy["params"]
+        market_filter_on = params.get("market_filter_enabled", True)
+        if market_filter_on:
+            market_state = get_market_state(int(params.get("market_filter_ma_period", 20)))
+        else:
+            market_state = {"bullish": True, "note": "已關閉大盤濾鏡"}
 
-    if market_filter_on:
-        downgraded = apply_market_filter(results, market_state)
-    else:
-        downgraded = 0
+        results = []
+        for row in wl:
+            sid = str(row["stock_id"]).strip()
+            name = row.get("name", "")
+            r = evaluate(sid, name, strategy=strategy)
+            if r:
+                results.append(r)
+            time.sleep(0.4)
+
+        if market_filter_on:
+            downgraded = apply_market_filter(results, market_state)
+        else:
+            downgraded = 0
 
     order = {"BUY": 0, "WATCH": 1, "SKIP": 2, "ERROR": 3}
     results.sort(key=lambda x: (order.get(x.get("action"), 4), -x.get("signal_score", 0)))

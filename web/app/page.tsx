@@ -12,6 +12,8 @@ export default function Dashboard() {
   const [running, setRunning] = useState(false);
   const [run, setRun] = useState<RunResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [finmindToken, setFinmindToken] = useState("");
+  const [stockText, setStockText] = useState("2330 台積電\n2317 鴻海");
 
   useEffect(() => {
     api.listStrategies().then((d) => {
@@ -28,7 +30,20 @@ export default function Dashboard() {
     setError(null);
     setRun(null);
     try {
-      const r = await api.run(picked);
+      const stocks = stockText
+        .split(/\n+/)
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .map((line) => {
+          const [stock_id, ...nameParts] = line.split(/[ ,，\t]+/);
+          return { stock_id, name: nameParts.join(" ") };
+        });
+      if (!finmindToken.trim()) throw new Error("請輸入 FinMind Token");
+      if (!stocks.length) throw new Error("請至少輸入一個股票代號");
+      const r = await api.run(picked, undefined, {
+        finmindToken: finmindToken.trim(),
+        stocks,
+      });
       setRun(r);
     } catch (e: any) {
       setError(e.message);
@@ -76,6 +91,31 @@ export default function Dashboard() {
 
       <div className="card">
         <h2 className="font-medium mb-4">執行今日選股</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+          <div>
+            <label className="label">FinMind Token</label>
+            <input
+              className="input"
+              type="password"
+              value={finmindToken}
+              onChange={(e) => setFinmindToken(e.target.value)}
+              placeholder="只在本次請求使用，不會儲存"
+              autoComplete="off"
+            />
+          </div>
+          <div>
+            <label className="label">股票清單</label>
+            <textarea
+              className="input min-h-24 resize-y"
+              value={stockText}
+              onChange={(e) => setStockText(e.target.value)}
+              placeholder={"每行一檔，例如：\n2330 台積電\n2317 鴻海"}
+            />
+          </div>
+        </div>
+        <p className="text-xs text-muted mb-4">
+          網頁模式直接掃描你輸入的股票，不需要 Google Sheet；最多一次 30 檔，資料來自 FinMind。
+        </p>
         <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3 items-end">
           <div>
             <label className="label">選擇策略</label>
