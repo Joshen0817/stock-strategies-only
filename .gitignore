@@ -21,3 +21,4 @@ speech-to-text-*.json
 
 # FinMind 本地快取（parquet）
 .cache/
+.vercel
