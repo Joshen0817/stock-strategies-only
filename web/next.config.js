@@ -1,6 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   async rewrites() {
+    // Local development uses the FastAPI dev server. In production Vercel
+    // routes /api/* to the Python function configured in the repo root.
+    if (process.env.NODE_ENV === "production") return [];
     return [
       {
         source: "/api/:path*",
